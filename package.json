@@ -1,0 +1,29 @@
+{
+  "name": "phantom",
+  "productName": "Phantom",
+  "version": "0.1.0",
+  "description": "Phantom — a screen-share-invisible AI interview/meeting copilot",
+  "main": "main.js",
+  "scripts": {
+    "start": "env -u ELECTRON_RUN_AS_NODE electron .",
+    "dist": "env -u ELECTRON_RUN_AS_NODE CSC_IDENTITY_AUTODISCOVERY=false electron-builder",
+    "dist:mac": "env -u ELECTRON_RUN_AS_NODE CSC_IDENTITY_AUTODISCOVERY=false electron-builder --mac",
+    "dist:win": "env -u ELECTRON_RUN_AS_NODE electron-builder --win"
+  },
+  "license": "MIT",
+  "build": {
+    "appId": "com.agenthub.phantom",
+    "productName": "Phantom",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "pipeline.js", "settings.js", "preload.js", "audio.js", "pcm-worklet.js", "index.html"],
+    "mac": { "target": ["dmg"], "category": "public.app-category.productivity", "identity": null },
+    "win": { "target": ["nsis"] }
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  }
+}

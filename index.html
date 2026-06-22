@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      background: transparent;
+      font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+      color: #e8e8ec;
+      user-select: none;
+      overflow: hidden;
+    }
+    .panel {
+      position: relative;
+      margin: 8px;
+      height: calc(100vh - 16px);
+      display: flex;
+      flex-direction: column;
+      background: rgba(18, 18, 24, 0.82);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+      overflow: hidden;
+    }
+    .titlebar {
+      -webkit-app-region: drag;       /* drag the whole window here */
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.04);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .titlebar .name { font-size: 13px; font-weight: 600; letter-spacing: .2px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background:#34d399; display:inline-block; margin-right:7px; }
+    .controls { -webkit-app-region: no-drag; display:flex; gap:8px; }
+    .btn { -webkit-app-region: no-drag; cursor: pointer; font-size: 11px;
+           padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.08);
+           border: none; color: #cfcfd6; }
+    .btn:hover { background: rgba(255,255,255,0.16); }
+    .body { flex: 1; padding: 14px; overflow-y: auto; font-size: 13px; line-height: 1.5; }
+    .hint { color: #9a9aa6; font-size: 12px; }
+    kbd { background: rgba(255,255,255,0.1); border-radius: 4px; padding: 1px 5px; font-size: 11px; }
+    .transcript { margin-top: 10px; font-size: 12px; color: #c7c7d1; font-style: italic; }
+    .answer { margin-top: 10px; white-space: pre-wrap; }
+    .footer { padding: 10px 14px; border-top: 1px solid rgba(255,255,255,0.06); }
+    .footer input {
+      width: 100%; -webkit-app-region: no-drag;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+      color: #fff; border-radius: 8px; padding: 8px 10px; font-size: 13px; outline: none;
+    }
+    .settings {
+      position: absolute; inset: 0; margin: 8px; border-radius: 14px;
+      background: rgba(14,14,20,0.98); padding: 16px;
+      display: flex; flex-direction: column; gap: 12px; z-index: 10;
+      overflow-y: auto;
+    }
+    .settings[hidden] { display: none; } /* author display:flex would otherwise beat [hidden] */
+    .settings h3 { font-size: 14px; margin-bottom: 2px; }
+    .settings label { font-size: 12px; color: #9a9aa6; display: block; margin-bottom: 5px; }
+    .settings select, .settings input {
+      -webkit-app-region: no-drag; width: 100%; box-sizing: border-box;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+      color: #fff; border-radius: 8px; padding: 9px 10px; font-size: 13px; outline: none;
+    }
+    .settings .note { font-size: 11px; color: #8a8a96; line-height: 1.5; }
+    .settings .actions { margin-top: auto; display: flex; gap: 8px; justify-content: flex-end; }
+    .settings a { color: #93c5fd; }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <div class="titlebar">
+      <div class="name"><span class="dot" id="dot"></span>Phantom</div>
+      <div class="controls">
+        <button class="btn" id="micBtn" onclick="window.ghostAudio.toggle()">● Listen</button>
+        <button class="btn" id="gearBtn">⚙</button>
+        <button class="btn" onclick="window.overlay.quit()">Quit</button>
+      </div>
+    </div>
+
+    <div class="body">
+      <div class="hint" id="status">Idle. Press <kbd>⌘/Ctrl</kbd>+<kbd>M</kbd> or “Listen” to start.</div>
+      <div class="transcript" id="transcript"></div>
+      <div class="answer" id="answer"></div>
+    </div>
+
+    <div class="footer">
+      <input id="q" placeholder="Type a question, or just speak…" />
+    </div>
+
+    <div class="settings" id="settings" hidden>
+      <h3>Settings</h3>
+      <div>
+        <label>AI provider</label>
+        <select id="provider">
+          <option value="groq">Groq (free tier)</option>
+          <option value="openai">OpenAI (ChatGPT)</option>
+          <option value="gemini">Google Gemini</option>
+          <option value="anthropic">Anthropic (Claude)</option>
+        </select>
+      </div>
+      <div>
+        <label id="keyLabel">API key</label>
+        <input id="apiKey" type="password" placeholder="Paste your API key" />
+        <div class="note" id="keyNote"></div>
+      </div>
+
+      <div id="sttBlock" hidden style="border-top:1px solid rgba(255,255,255,0.08); padding-top:12px;">
+        <label>Speech-to-text provider <span style="color:#8a8a96">(Claude can't transcribe audio)</span></label>
+        <select id="sttProvider">
+          <option value="groq">Groq (free)</option>
+          <option value="openai">OpenAI</option>
+          <option value="gemini">Gemini (free)</option>
+        </select>
+        <label style="margin-top:10px">Speech-to-text API key</label>
+        <input id="sttKey" type="password" placeholder="Paste your STT provider key" />
+        <div class="note" id="sttNote"></div>
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="cancelSettings">Cancel</button>
+        <button class="btn" id="saveSettings">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="audio.js"></script>
+  <script>
+    const q = document.getElementById('q');
+    const answer = document.getElementById('answer');
+    const transcript = document.getElementById('transcript');
+    const status = document.getElementById('status');
+    const micBtn = document.getElementById('micBtn');
+    const dot = document.getElementById('dot');
+
+    function setMicUI() {
+      const on = window.ghostAudio.isRunning();
+      micBtn.textContent = on ? '■ Stop' : '● Listen';
+      dot.style.background = on ? '#f87171' : '#34d399';
+    }
+
+    // Manual question box
+    q.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && q.value.trim()) {
+        window.overlay.ask(q.value.trim());
+        q.value = '';
+      }
+    });
+
+    // Global mic toggle (⌘/Ctrl+M)
+    window.overlay.onToggleMic(() => { window.ghostAudio.toggle(); setMicUI(); });
+    micBtn.addEventListener('click', () => setTimeout(setMicUI, 0));
+
+    window.addEventListener('mic-error', (e) => {
+      status.textContent = 'mic error: ' + e.detail;
+    });
+
+    // Pipeline events
+    window.overlay.onStatus((s) => { status.textContent = s; });
+    window.overlay.onTranscript((t) => {
+      transcript.textContent = (t.final ? '🗣 ' : '… ') + t.text;
+      transcript.style.opacity = t.final ? '1' : '0.6';
+    });
+    window.overlay.onAnswerStart((qText) => {
+      if (qText) transcript.textContent = '🗣 ' + qText;
+      answer.textContent = '';
+    });
+    window.overlay.onAnswerDelta((d) => {
+      answer.textContent += d;
+      answer.scrollIntoView({ block: 'end' });
+    });
+    window.overlay.onAnswerDone(() => {});
+
+    // ---- Settings ----
+    const gearBtn = document.getElementById('gearBtn');
+    const settingsEl = document.getElementById('settings');
+    const providerSel = document.getElementById('provider');
+    const apiKey = document.getElementById('apiKey');
+    const keyNote = document.getElementById('keyNote');
+
+    const LABELS = { groq: 'Groq', openai: 'OpenAI', gemini: 'Gemini', anthropic: 'Claude' };
+    const LINKS = {
+      groq: 'console.groq.com (free)',
+      openai: 'platform.openai.com/api-keys',
+      gemini: 'aistudio.google.com/apikey (free)',
+      anthropic: 'console.anthropic.com',
+    };
+    const keyLabel = document.getElementById('keyLabel');
+    const sttBlock = document.getElementById('sttBlock');
+    const sttProviderSel = document.getElementById('sttProvider');
+    const sttKey = document.getElementById('sttKey');
+    const sttNote = document.getElementById('sttNote');
+    let lastSettings = { provider: 'groq', sttProvider: 'groq', hasKey: {} };
+
+    function placeholderFor(p) {
+      return lastSettings.hasKey && lastSettings.hasKey[p]
+        ? 'Key saved — leave blank to keep it'
+        : `Paste your ${LABELS[p]} API key`;
+    }
+
+    function renderSttField() {
+      const p = sttProviderSel.value;
+      sttKey.value = '';
+      sttKey.placeholder = placeholderFor(p);
+      sttNote.innerHTML = `Transcribes your microphone. Free key at <b>${LINKS[p]}</b>.`;
+    }
+
+    function renderKeyField() {
+      const p = providerSel.value;
+      apiKey.value = '';
+      apiKey.placeholder = placeholderFor(p);
+      if (p === 'anthropic') {
+        keyLabel.textContent = 'Claude API key — generates the answers';
+        keyNote.innerHTML = `Used to write the spoken answers. Get a key at <b>${LINKS.anthropic}</b>. Stored locally only.`;
+        sttBlock.hidden = false;
+        sttProviderSel.value = lastSettings.sttProvider || 'groq';
+        renderSttField();
+      } else {
+        keyLabel.textContent = `${LABELS[p]} API key — used for both speech-to-text and answers`;
+        keyNote.innerHTML = `Get a key at <b>${LINKS[p]}</b>. Stored locally on this device only.`;
+        sttBlock.hidden = true;
+      }
+    }
+
+    function openSettings() {
+      window.overlay.getSettings().then((s) => {
+        lastSettings = s;
+        providerSel.value = s.provider;
+        renderKeyField();
+        settingsEl.hidden = false;
+      });
+    }
+    function reflectStatus(s) {
+      if (!s.hasKey[s.provider]) {
+        status.textContent = `Add a ${LABELS[s.provider]} key in Settings (⚙) to start.`;
+        return;
+      }
+      if (s.provider === 'anthropic') {
+        const okStt = ['groq', 'openai', 'gemini'].some((p) => s.hasKey[p]);
+        if (!okStt) {
+          status.textContent = 'Claude ready for typed questions. Add a speech-to-text key in Settings (⚙) for voice.';
+          return;
+        }
+      }
+      status.textContent = `Provider: ${LABELS[s.provider]}. Press ⌘/Ctrl+M or “Listen”.`;
+    }
+
+    gearBtn.addEventListener('click', openSettings);
+    providerSel.addEventListener('change', renderKeyField);
+    sttProviderSel.addEventListener('change', renderSttField);
+    document.getElementById('cancelSettings').addEventListener('click', () => { settingsEl.hidden = true; });
+    document.getElementById('saveSettings').addEventListener('click', () => {
+      const next = { provider: providerSel.value, keys: {} };
+      if (apiKey.value.trim()) next.keys[providerSel.value] = apiKey.value.trim();
+      if (providerSel.value === 'anthropic') {
+        next.sttProvider = sttProviderSel.value;
+        if (sttKey.value.trim()) next.keys[sttProviderSel.value] = sttKey.value.trim();
+      }
+      window.overlay.saveSettings(next).then((s) => {
+        lastSettings = s;
+        settingsEl.hidden = true;
+        reflectStatus(s);
+      });
+    });
+
+    // initial status from saved settings
+    window.overlay.getSettings().then((s) => { lastSettings = s; reflectStatus(s); });
+  </script>
+</body>
+</html>
