@@ -1,9 +1,12 @@
 const { app, BrowserWindow, globalShortcut, ipcMain, screen } = require('electron');
 const path = require('path');
 const pipeline = require('./pipeline');
+const license = require('./license');
 
 let win = null;
+let licenseWin = null;
 let visible = true;
+let trialInfo = null;   // { days_left } when running in trial
 
 function createWindow() {
   const { width } = screen.getPrimaryDisplay().workAreaSize;
@@ -40,7 +43,44 @@ function createWindow() {
   win.loadFile('index.html');
   pipeline.register(win);
 
+  // Show the trial banner once the overlay is ready.
+  if (trialInfo) {
+    win.webContents.once('did-finish-load', () => win.webContents.send('trial-info', trialInfo));
+  }
+
   win.on('closed', () => { win = null; });
+}
+
+// The license / buy screen (a normal, visible, capturable window).
+function createLicenseWindow() {
+  licenseWin = new BrowserWindow({
+    width: 600, height: 720, resizable: false, title: 'Phantom — Activate',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true, nodeIntegration: false,
+    },
+  });
+  licenseWin.loadFile('license.html');
+  licenseWin.on('closed', () => { licenseWin = null; });
+}
+
+// Decide what to open on launch based on license status.
+async function gateAndLaunch() {
+  let status;
+  try {
+    status = await license.activate();   // uses saved key + machine id
+  } catch (e) {
+    // The product needs internet to work anyway, so fail OPEN on a network
+    // error rather than punish a legit user; the server re-checks next launch.
+    status = { status: 'trial', days_left: null, _offline: true };
+  }
+  if (status.status === 'expired') {
+    createLicenseWindow();
+  } else {
+    trialInfo = status.status === 'trial' ? { days_left: status.days_left } : null;
+    createWindow();
+    registerShortcuts();
+  }
 }
 
 function registerShortcuts() {
@@ -77,12 +117,22 @@ function registerShortcuts() {
 }
 
 app.whenReady().then(() => {
-  createWindow();
-  registerShortcuts();
+  gateAndLaunch();
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0 && !licenseWin) createWindow();
   });
+});
+
+// ─── Licensing IPC ───────────────────────────────────────────
+ipcMain.handle('license:activate', (_e, key) => license.activate(key));
+ipcMain.handle('license:pricing', () => license.getPricing());
+ipcMain.handle('license:order', (_e, data) => license.createOrder(data));
+ipcMain.handle('license:qr', (_e, { price, upi, name } = {}) => license.upiQrDataUrl(price, upi, name));
+ipcMain.on('license:proceed', () => {
+  trialInfo = null;
+  if (licenseWin) licenseWin.close();
+  if (!win) { createWindow(); registerShortcuts(); }
 });
 
 ipcMain.on('quit', () => app.quit());

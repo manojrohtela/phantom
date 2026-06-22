@@ -1,0 +1,114 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", sans-serif; background: #0b0b10; color: #e6e6ef; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 28px 24px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: #9a9aae; font-size: 13px; margin: 0 0 20px; }
+  .card { background: #15151d; border: 1px solid #262633; border-radius: 14px; padding: 18px; margin-bottom: 14px; }
+  .card h2 { font-size: 14px; margin: 0 0 12px; color: #cfcfe0; }
+  label { display: block; font-size: 11px; color: #8a8a9e; margin: 10px 0 4px; }
+  input { width: 100%; padding: 10px 12px; border-radius: 9px; border: 1px solid #2c2c3a; background: #0f0f16; color: #fff; font-size: 14px; }
+  input:focus { outline: none; border-color: #6c63ff; }
+  button { width: 100%; margin-top: 14px; padding: 11px; border: 0; border-radius: 9px; background: #6c63ff; color: #fff; font-weight: 600; font-size: 14px; cursor: pointer; }
+  button:hover { background: #5a52e0; }
+  button:disabled { opacity: .5; cursor: default; }
+  .muted { color: #8a8a9e; font-size: 12px; }
+  .msg { font-size: 13px; margin-top: 10px; }
+  .ok { color: #34d399; } .err { color: #f87171; }
+  .price { font-size: 26px; font-weight: 800; }
+  .offer { display: inline-block; background: #f59e0b22; color: #fbbf24; border: 1px solid #f59e0b44; border-radius: 999px; padding: 2px 10px; font-size: 11px; font-weight: 600; margin-left: 8px; }
+  .qr { background: #fff; padding: 8px; border-radius: 10px; width: 180px; }
+  .row { display: flex; gap: 16px; align-items: center; }
+  code { background: #0f0f16; border: 1px solid #2c2c3a; border-radius: 6px; padding: 3px 8px; font-size: 13px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>👻 Phantom</h1>
+    <p class="sub" id="sub">Your free trial has ended. Unlock lifetime access to keep using Phantom.</p>
+
+    <!-- Enter key -->
+    <div class="card">
+      <h2>Have a license key?</h2>
+      <input id="key" placeholder="PHN-XXXX-XXXX-XXXX" autocomplete="off" />
+      <button id="activateBtn">Activate</button>
+      <div class="msg" id="activateMsg"></div>
+    </div>
+
+    <!-- Buy -->
+    <div class="card">
+      <h2>Get a lifetime key</h2>
+      <div class="row" style="margin-bottom:14px;">
+        <div>
+          <div><span class="price" id="price">₹200</span><span class="offer" id="offer"></span></div>
+          <div class="muted" id="priceNote">One-time · lifetime · works on one PC at a time.</div>
+        </div>
+        <img id="qr" class="qr" alt="UPI QR" style="display:none;" />
+      </div>
+      <div class="muted">Pay to UPI: <code id="upi">—</code>, then submit your details below. We'll verify and email your key.</div>
+
+      <label>Your name</label>
+      <input id="name" />
+      <label>Email (we'll send the key here)</label>
+      <input id="email" type="email" />
+      <label>Phone (optional)</label>
+      <input id="phone" />
+      <label>UPI reference / UTR (from your payment)</label>
+      <input id="utr" />
+      <button id="orderBtn">I've paid — send my key</button>
+      <div class="msg" id="orderMsg"></div>
+    </div>
+
+    <p class="muted" style="text-align:center;">Need help? Contact support. · <a href="#" id="quit" style="color:#8a8a9e;">Quit</a></p>
+  </div>
+
+<script>
+  const L = window.phantomLicense;
+
+  async function init() {
+    try {
+      const p = await L.pricing();
+      document.getElementById('price').textContent = '₹' + p.price_inr;
+      document.getElementById('upi').textContent = p.upi_id || '—';
+      if (p.slots_left > 0 && p.price_inr < p.regular_price_inr) {
+        document.getElementById('offer').textContent = `launch offer · ${p.slots_left} left (then ₹${p.regular_price_inr})`;
+      }
+      const qr = await L.qr(p.price_inr, p.upi_id, p.upi_name);
+      if (qr) { const img = document.getElementById('qr'); img.src = qr; img.style.display = 'block'; }
+    } catch (e) { /* offline — still allow key entry */ }
+  }
+
+  document.getElementById('activateBtn').onclick = async () => {
+    const btn = document.getElementById('activateBtn'), msg = document.getElementById('activateMsg');
+    const key = document.getElementById('key').value.trim();
+    if (!key) return;
+    btn.disabled = true; msg.textContent = 'Activating…'; msg.className = 'msg';
+    try {
+      const r = await L.activate(key);
+      if (r.status === 'licensed') { msg.textContent = '✅ Activated! Launching…'; msg.className = 'msg ok'; L.proceed(); }
+      else { msg.textContent = 'Key accepted but not active. Contact support.'; msg.className = 'msg err'; btn.disabled = false; }
+    } catch (e) { msg.textContent = e.message || 'Activation failed'; msg.className = 'msg err'; btn.disabled = false; }
+  };
+
+  document.getElementById('orderBtn').onclick = async () => {
+    const btn = document.getElementById('orderBtn'), msg = document.getElementById('orderMsg');
+    const name = document.getElementById('name').value.trim();
+    const email = document.getElementById('email').value.trim();
+    if (!name || !email) { msg.textContent = 'Name and email are required.'; msg.className = 'msg err'; return; }
+    btn.disabled = true; msg.textContent = 'Submitting…'; msg.className = 'msg';
+    try {
+      await L.order({ name, email, phone: document.getElementById('phone').value.trim(), utr: document.getElementById('utr').value.trim() });
+      msg.textContent = "✅ Got it! Once we confirm your payment we'll email your key. Then come back and enter it above.";
+      msg.className = 'msg ok';
+    } catch (e) { msg.textContent = e.message || 'Could not submit'; msg.className = 'msg err'; btn.disabled = false; }
+  };
+
+  document.getElementById('quit').onclick = (e) => { e.preventDefault(); L.quit(); };
+  init();
+</script>
+</body>
+</html>

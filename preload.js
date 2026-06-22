@@ -18,4 +18,17 @@ contextBridge.exposeInMainWorld('overlay', {
   onAnswerStart: (cb) => ipcRenderer.on('answer-start', (_e, q) => cb(q)),
   onAnswerDelta: (cb) => ipcRenderer.on('answer-delta', (_e, d) => cb(d)),
   onAnswerDone: (cb) => ipcRenderer.on('answer-done', () => cb()),
+
+  // trial banner (sent to the overlay when running in trial)
+  onTrial: (cb) => ipcRenderer.on('trial-info', (_e, info) => cb(info)),
+});
+
+// Licensing API (used by license.html, and activate by the overlay's upgrade button)
+contextBridge.exposeInMainWorld('phantomLicense', {
+  activate: (key) => ipcRenderer.invoke('license:activate', key),
+  pricing: () => ipcRenderer.invoke('license:pricing'),
+  order: (data) => ipcRenderer.invoke('license:order', data),
+  qr: (price, upi, name) => ipcRenderer.invoke('license:qr', { price, upi, name }),
+  proceed: () => ipcRenderer.send('license:proceed'),
+  quit: () => ipcRenderer.send('quit'),
 });

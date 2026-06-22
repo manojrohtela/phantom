@@ -14,13 +14,37 @@
   "build": {
     "appId": "com.agenthub.phantom",
     "productName": "Phantom",
-    "directories": { "output": "dist" },
-    "files": ["main.js", "pipeline.js", "settings.js", "preload.js", "audio.js", "pcm-worklet.js", "index.html"],
-    "mac": { "target": ["dmg"], "category": "public.app-category.productivity", "identity": null },
-    "win": { "target": ["nsis"] }
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "pipeline.js",
+      "settings.js",
+      "preload.js",
+      "audio.js",
+      "pcm-worklet.js",
+      "index.html",
+      "license.js",
+      "license.html"
+    ],
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.productivity",
+      "identity": null
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    }
   },
   "dependencies": {
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "node-machine-id": "^1.1.12",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "electron": "^31.0.0",
