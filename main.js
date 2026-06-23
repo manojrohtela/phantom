@@ -1,4 +1,4 @@
-const { app, BrowserWindow, globalShortcut, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, screen, shell } = require('electron');
 const path = require('path');
 const pipeline = require('./pipeline');
 const license = require('./license');
@@ -61,6 +61,14 @@ function createLicenseWindow() {
     },
   });
   licenseWin.loadFile('license.html');
+  // Open legal links (Terms/Privacy/Refund) in the user's browser, not in-app.
+  licenseWin.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:/.test(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  licenseWin.webContents.on('will-navigate', (e, url) => {
+    if (/^https?:/.test(url)) { e.preventDefault(); shell.openExternal(url); }
+  });
   licenseWin.on('closed', () => { licenseWin = null; });
 }
 
